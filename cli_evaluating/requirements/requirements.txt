@@ -1,0 +1,15 @@
+tensorflow==2.9.0
+keras==2.9.0
+numpy==1.23.0
+pillow==9.2.0
+matplotlib==3.5.2
+argparse==1.1
+tqdm==4.64.0
+tensorflow_hub
+opencv-python
+import_ipynb
+scikit-image
+ipykernel
+notebook
+glob2
+scikit-learn==1.1.1

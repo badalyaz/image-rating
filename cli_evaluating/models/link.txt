@@ -1,0 +1,11 @@
+Download weights of multigap and put to 'models/'
+    https://www.dropbox.com/s/7dlayo4juirsqtr/quality-mlsp-mtl-mse-loss.hdf5?dl=0
+    
+Download weights of dense and put to 'models/Softmax/MultiGap_CNN/'
+    https://www.dropbox.com/s/b4qlz9dghul0t3y/model_fc_softmax_MG_8k_B7_1k_600x600.hdf5?dl=0
+
+Download PCA model for multigap and put to 'models/PCA/'
+    https://www.dropbox.com/s/fk08ib159qqjzx1/pca.pkl?dl=0
+    
+Download PCA model for cnn and put to 'models/PCA/'
+    https://www.dropbox.com/s/h42m1fqdyquyfzi/pca.pkl?dl=0
