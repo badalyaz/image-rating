@@ -1,3 +1,8 @@
+import tensorflow as tf
+import tensorflow_hub as hub
+import keras
+import tensorflow.keras
+import tensorflow.keras.backend as K
 import sklearn
 import imutils
 import random
@@ -8,104 +13,26 @@ import math
 import json
 import cv2
 import os
-
-# import torch
-# from torchvision import transforms
-
-import tensorflow as tf
-import tensorflow_hub as hub
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
 from keras.layers import *
-from random import shuffle
 from keras.models import Model
 from keras.applications import *
 from keras.optimizers import SGD, Adam
 from tensorflow.keras.applications.inception_resnet_v2 import preprocess_input
 from tensorflow.keras.preprocessing.image import load_img, img_to_array, ImageDataGenerator
 from sklearn.model_selection import train_test_split
-from pathlib import Path
-
 from sklearn import metrics
 from PIL import Image
 from glob import glob
 from numpy.random import rand
 import pickle as pk
 from sklearn.decomposition import PCA
-
-import keras
-import tensorflow.keras
-import tensorflow.keras.backend as K
-
-import numpy as np
-import pandas as pd
-import matplotlib.pyplot as plt
-
-# device = 'cpu'
-# if torch.cuda.is_available:
-#     device = 'cuda'
-
+from random import shuffle
+from pathlib import Path
 
 random.seed(5)
-
-
-# Augmentations
-#     Resizing
-#         Resize area
-#         Resize main
-#         Resize add border
-#         Resize max
-#     Cropping
-#         Random crop
-#         Random crop without keeping aspect ratio
-#     Rotate and crop
-#         Rotate image
-#         Largest rotated rect
-#         Crop around center
-#         Rotate crop
-# 
-# Pytorch Model
-#     Read image pytorch
-#     Build pytorch feature extractor model
-#     Pytorch extract features from path automated
-#     Pytorch predict
-#     Pytorch predict from path
-# Tensorflow Model
-#     Extract mlsp features
-#     Extract features from path automated
-#     Extract features from path automated json
-#     Extract mlsp features from rand
-#     Extract static validation data
-#     Extract mlsp features from path  
-#     Model inceptionresnet multigap
-#     Fully connected softmax
-#     Predict
-#     Predict from path
-#     Normalize feat vector
-#     Pca trannsform
-#     Data loader
-#     Calculate accuracy
-#     Calculate accurcay from path
-#     Plot predicted and original
-#     Scheduler
-#     New scheduler
-# Random
-#     Get train pairs
-#     Read image
-#     Preprocess image
-#     Calculate metrics
-#     Calc acc
-#     Lr exp decay
-#     Generate root path
-    
-    
-
-#Augmentations:
-
-def resize_area(img_arr, size=(500, 500),interpolation = cv2.INTER_LINEAR):
-    area = size[0] * size[1]
-    h, w, _ = img_arr.shape
-    scale = np.sqrt(float(area) / (w * h))
-    resized = cv2.resize(img_arr, (int(w * scale), int(h * scale)),interpolation = interpolation)
-    return resized
 
 def resize_main(img_arr, size, interpolation = cv2.INTER_LINEAR):
     dim = None
@@ -146,6 +73,13 @@ def resize_add_border(img_arr, size, interpolation = cv2.INTER_LINEAR):
                                          borderType=cv2.BORDER_CONSTANT, value=0)
     return img_arr
 
+def resize_area(img_arr, size=(500, 500),interpolation = cv2.INTER_LINEAR):
+    area = size[0] * size[1]
+    h, w, _ = img_arr.shape
+    scale = np.sqrt(float(area) / (w * h))
+    resized = cv2.resize(img_arr, (int(w * scale), int(h * scale)),interpolation = interpolation)
+    return resized
+
 
 def resize_max(img_arr, size, for_all=False,interpolation = cv2.INTER_LINEAR):
     h, w, _ = img_arr.shape
@@ -165,31 +99,6 @@ def resize_max(img_arr, size, for_all=False,interpolation = cv2.INTER_LINEAR):
         else:
             img_arr = cv2.resize(img_arr, (size),interpolation = interpolation)
     return img_arr
-
-
-def random_crop(img, scale_range=(0.4, 0.6)):
-    scale = np.random.uniform(scale_range[0], scale_range[1], size=1)
-
-    height, width = int(img.shape[0]*np.sqrt(scale)), int(img.shape[1]*np.sqrt(scale))
-    x = random.randint(0, img.shape[1] - int(width))
-    y = random.randint(0, img.shape[0] - int(height))
-    cropped = img[y:y+height, x:x+width]
-    
-    return cropped
-
-
-def random_crop_without_ar(img, scale_range=(0.4, 0.6)):
-    scale = np.random.uniform(scale_range[0], scale_range[1], size=1)
-
-    scale_h = np.sqrt(scale)
-    scale_h = np.random.uniform(scale_h, 0.9, size=1)
-    height = int(scale_h * img.shape[0])
-    width = int(scale*img.shape[0]*img.shape[1]/height)
-    x = random.randint(0, img.shape[1] - int(width))
-    y = random.randint(0, img.shape[0] - int(height))
-    cropped = img[y:y+height, x:x+width]
-
-    return cropped
 
 def rotate_image(image, angle):
     """
@@ -258,6 +167,31 @@ def rotate_image(image, angle):
     )
 
     return result
+
+
+def random_crop(img, scale_range=(0.4, 0.6)):
+    scale = np.random.uniform(scale_range[0], scale_range[1], size=1)
+
+    height, width = int(img.shape[0]*np.sqrt(scale)), int(img.shape[1]*np.sqrt(scale))
+    x = random.randint(0, img.shape[1] - int(width))
+    y = random.randint(0, img.shape[0] - int(height))
+    cropped = img[y:y+height, x:x+width]
+    
+    return cropped
+
+
+def random_crop_without_ar(img, scale_range=(0.4, 0.6)):
+    scale = np.random.uniform(scale_range[0], scale_range[1], size=1)
+
+    scale_h = np.sqrt(scale)
+    scale_h = np.random.uniform(scale_h, 0.9, size=1)
+    height = int(scale_h * img.shape[0])
+    width = int(scale*img.shape[0]*img.shape[1]/height)
+    x = random.randint(0, img.shape[1] - int(width))
+    y = random.randint(0, img.shape[0] - int(height))
+    cropped = img[y:y+height, x:x+width]
+
+    return cropped
 
 
 def largest_rotated_rect(w, h, angle):
@@ -622,32 +556,6 @@ def extract_static_val_data(data, perc = 0.1):
     return data, data_val
 
 
-def extract_mlsp_feats_paths(model, paths, resize_func=None, size=None):
-    '''
-    extract_mlsp_feats using only paths
-    no need for csv
-    paths -> list of paths of images
-    '''
-    i = 1
-    feats = []
-    for path in paths:
-        x = read_img(path, preprocess=None)
-                
-        if resize_func:
-            x = resize_func(x, size)
-
-        x = preproccess_img(x)
-
-        feat = model.predict(x, verbose=0)
-        feats.append(feat)
-        
-        if i % 100 == 0:
-            print('%d images' % (i))
-        i += 1
-    print('Done...')
-    return np.squeeze(np.array(feats), axis=1)
-
-
 def model_inceptionresnet_multigap(input_shape=(None, None, 3), 
                                    return_sizes=False, model_path='models/quality-mlsp-mtl-mse-loss.hdf5'):
     """
@@ -691,6 +599,32 @@ def fc_model_softmax(input_num=16928):
 
     model = Model(input_,pred)
     return model
+
+
+def extract_mlsp_feats_paths(model, paths, resize_func=None, size=None):
+    '''
+    extract_mlsp_feats using only paths
+    no need for csv
+    paths -> list of paths of images
+    '''
+    i = 1
+    feats = []
+    for path in paths:
+        x = read_img(path, preprocess=None)
+                
+        if resize_func:
+            x = resize_func(x, size)
+
+        x = preproccess_img(x)
+
+        feat = model.predict(x, verbose=0)
+        feats.append(feat)
+        
+        if i % 100 == 0:
+            print('%d images' % (i))
+        i += 1
+    print('Done...')
+    return np.squeeze(np.array(feats), axis=1)
 
 def predict(x, y=None, model_gap=None, model=None, model_cnn=None, is_norm=False, pca_mg=None, pca_cnn = None):
     '''
@@ -858,41 +792,6 @@ def new_scheduler(epoch, lr):
     
     return lr * decr_scale
 
-
-def get_train_pairs(features_bad, features_good, train_size=0.9, shuffle=True):
-    train_data_bad = features_bad
-    print('train_data_bad shape', train_data_bad.shape)
-    train_data_good = features_good
-    print('train_data_good shape', train_data_good.shape)
-
-    input_data = np.concatenate( (train_data_bad,train_data_good),axis=0)
-    target_data = np.concatenate( (np.zeros(train_data_bad.shape[0]),np.ones(train_data_good.shape[0])) , axis=0 )
-    
-    X_train, X_test, y_train, y_test = train_test_split(input_data,target_data, train_size=train_size, shuffle=shuffle)
-    
-    return X_train, X_test, y_train, y_test
-
-def read_img(path, preprocess=True, resize_func=None, size=None, for_all=False):
-    im = Image.open(path).convert('RGB')
-    x = img_to_array(im)    
-    im.close()
-    
-    if preprocess:
-        if resize_func and for_all:
-            x = resize_func(x, size, for_all)
-        elif resize_func:
-            x = resize_func(x, size)
-        x = np.expand_dims(x, axis=0)
-        x = x / 255
-    
-    return x
-
-def preproccess_img(x):
-    x = np.expand_dims(x, axis=0)
-    x = x / 255
-    
-    return x
-
 def calc_metrics(y_true, y_pred):
     tn, fp, fn, tp = metrics.confusion_matrix(y_true, y_pred).ravel()
 #     print(f'TN - {tn}, FP - {fp}, FN - {fn}, TP - {tp}\n')
@@ -930,3 +829,38 @@ def calc_acc(model, weights_path, X_test, y_test, batch_size):
 def lr_exp_decay(epoch, lr):
     k = 0.048
     return lr * np.exp(-k*epoch)
+
+
+def get_train_pairs(features_bad, features_good, train_size=0.9, shuffle=True):
+    train_data_bad = features_bad
+    print('train_data_bad shape', train_data_bad.shape)
+    train_data_good = features_good
+    print('train_data_good shape', train_data_good.shape)
+
+    input_data = np.concatenate( (train_data_bad,train_data_good),axis=0)
+    target_data = np.concatenate( (np.zeros(train_data_bad.shape[0]),np.ones(train_data_good.shape[0])) , axis=0 )
+    
+    X_train, X_test, y_train, y_test = train_test_split(input_data,target_data, train_size=train_size, shuffle=shuffle)
+    
+    return X_train, X_test, y_train, y_test
+
+def read_img(path, preprocess=True, resize_func=None, size=None, for_all=False):
+    im = Image.open(path).convert('RGB')
+    x = img_to_array(im)    
+    im.close()
+    
+    if preprocess:
+        if resize_func and for_all:
+            x = resize_func(x, size, for_all)
+        elif resize_func:
+            x = resize_func(x, size)
+        x = np.expand_dims(x, axis=0)
+        x = x / 255
+    
+    return x
+
+def preproccess_img(x):
+    x = np.expand_dims(x, axis=0)
+    x = x / 255
+    
+    return x

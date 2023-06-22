@@ -7,7 +7,7 @@ model_fc = fc_model_softmax(input_num=16928)
 model_fc.load_weights('models/Softmax/26.08_scheduler_tests/model_fc_softmax_26_08_128bs_epoch15.hdf5')
 model_base=model_inceptionresnet_multigap()
 
-class model_multigap_fc(tf.keras.Model):
+class model_mg_fc(tf.keras.Model):
     def __init__(self, model_base=model_base, model_fc=model_fc):
         super(model_multigap_fc, self).__init__()
         

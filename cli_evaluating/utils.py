@@ -1,110 +1,112 @@
+import numpy as np
+import matplotlib.pyplot as plt
+from random import shuffle
 import random
 import cv2
 import os
-
-import tensorflow as tf
-import tensorflow_hub as hub
 from tensorflow.keras.layers import *
-from random import shuffle
 from tensorflow.keras.models import Model
 from tensorflow.keras.applications import *
 from tensorflow.keras.applications.inception_resnet_v2 import preprocess_input
 from tensorflow.keras.preprocessing.image import img_to_array
-
+import tensorflow as tf
+import tensorflow_hub as hub
 from sklearn import metrics
 from PIL import Image
 from glob import glob
 import pickle as pk
 from numpy.random import rand
 
-import numpy as np
-import matplotlib.pyplot as plt
-
 random.seed(5)
 
-def resize_add_border(img_arr, size):
-    h, w, _ = img_arr.shape
-    if h > w:
-        img_arr = resize_main(img_arr, size=(size[0],None))
-        b_size_left = int((size[1] - img_arr.shape[1])/2)
-        b_size_right = size[1] - (b_size_left + img_arr.shape[1])
-        img_arr = cv2.copyMakeBorder(img_arr, top=0, bottom=0,
-                                         left=b_size_left, right=b_size_right,
-                                         borderType=cv2.BORDER_CONSTANT, value=0)
-    else:
-        img_arr = resize_main(img_arr, size=(None, size[1]))
-        b_size_top = int((size[0] - img_arr.shape[0])/2)
-        b_size_bottom = size[0] - (b_size_top + img_arr.shape[0])
-        img_arr = cv2.copyMakeBorder(img_arr, top=b_size_top, bottom=b_size_bottom,
-                                         left=0, right=0,
-                                         borderType=cv2.BORDER_CONSTANT, value=0)
-    return img_arr
+import cv2
 
-def resize_main(img_arr, size):
-    dim = None
-    height, width = size
-    h, w, _ = img_arr.shape
-    #if not given width or height return the original image
-    if width is None and height is None:
-        return img_arr
-    #give both height and width to do regular resize without keeping aspect ratio
-    if width is not None and height is not None:
-        resized = cv2.resize(img_arr, (height, width))
+def resize_image(image, new_size):
+    dimensions = None
+    target_height, target_width = new_size
+    image_height, image_width, _ = image.shape
+    
+    # If neither width nor height is provided, return the original image
+    if target_width is None and target_height is None:
+        return image
+    
+    # If both height and width are provided, resize without maintaining aspect ratio
+    if target_width is not None and target_height is not None:
+        resized = cv2.resize(image, (target_width, target_height))
         return resized
-    if width is None:
-        r = height / float(h)
-        dim = (int(w * r), height)
+    
+    if target_width is None:
+        ratio = target_height / float(image_height)
+        dimensions = (int(image_width * ratio), target_height)
     else:
-        r = width / float(w)
-        dim = (width, int(h * r))
-    resized = cv2.resize(img_arr, dim)
+        ratio = target_width / float(image_width)
+        dimensions = (target_width, int(image_height * ratio))
+    
+    resized = cv2.resize(image, dimensions)
     return resized
 
 
-def resize_max(img_arr, size, for_all=False):
-    h, w, _ = img_arr.shape
+def resize_with_max(image, max_size, apply_to_all=False):
+    image_height, image_width, _ = image.shape
     
-    if for_all:
-        if h > w:
-            img_arr = resize_main(img_arr, size = (size[0], None))
-        elif w > h:
-            img_arr = resize_main(img_arr, size = (None, size[1]))
+    if apply_to_all:
+        if image_height > image_width:
+            image = resize_image(image, new_size=(max_size[0], None))
+        elif image_width > image_height:
+            image = resize_image(image, new_size=(None, max_size[1]))
         else:
-            img_arr = cv2.resize(img_arr, (size))
-    elif max((h, w)) > size[0]:
-        if h > w:
-            img_arr = resize_main(img_arr, size = (size[0], None))
-        elif w > h:
-            img_arr = resize_main(img_arr, size = (None, size[1]))
+            image = cv2.resize(image, max_size)
+    elif max((image_height, image_width)) > max_size[0]:
+        if image_height > image_width:
+            image = resize_image(image, new_size=(max_size[0], None))
+        elif image_width > image_height:
+            image = resize_image(image, new_size=(None, max_size[1]))
         else:
-            img_arr = cv2.resize(img_arr, (size))
-    return img_arr
+            image = cv2.resize(image, max_size)
+    
+    return image
+
+def add_border_resize(image, size):
+    height, width, _ = image.shape
+    
+    if height > width:
+        resized_image = resize_image(image, size=(size[0], None))
+        border_size_left = int((size[1] - resized_image.shape[1]) / 2)
+        border_size_right = size[1] - (border_size_left + resized_image.shape[1])
+        bordered_image = cv2.copyMakeBorder(resized_image, top=0, bottom=0,
+                                            left=border_size_left, right=border_size_right,
+                                            borderType=cv2.BORDER_CONSTANT, value=0)
+    else:
+        resized_image = resize_image(image, size=(None, size[1]))
+        border_size_top = int((size[0] - resized_image.shape[0]) / 2)
+        border_size_bottom = size[0] - (border_size_top + resized_image.shape[0])
+        bordered_image = cv2.copyMakeBorder(resized_image, top=border_size_top, bottom=border_size_bottom,
+                                            left=0, right=0,
+                                            borderType=cv2.BORDER_CONSTANT, value=0)
+    
+    return bordered_image
 
 
-def model_inceptionresnet_multigap(input_shape=(None, None, 3), 
-                                   return_sizes=False, model_path='models/quality-mlsp-mtl-mse-loss.hdf5'):
+def build_multi_gap_inception_resnet(input_shape=(None, None, 3),
+                                    return_sizes=False, model_path='models/quality-mlsp-mtl-mse-loss.hdf5'):
     """
-    Build InceptionResNetV2 multi-GAP model, that extracts narrow MLSP features.
-
+    Build a multi-GAP model based on InceptionResNetV2 to extract narrow MLSP features.
     :param input_shape: shape of the input images
     :param return_sizes: return the sizes of each layer: (model, gap_sizes)
     :return: model or (model, gap_sizes)
     """
-    model_base = InceptionResNetV2(weights='imagenet',
-                                  include_top=False,
-                                  input_shape=input_shape)
-
-    model_base.load_weights(model_path)
-
-    feature_layers = [l for l in model_base.layers if 'mixed' in l.name]
-    gaps = [GlobalAveragePooling2D(name="gap%d" % i)(l.output)
-           for i, l in enumerate(feature_layers)]
-    concat_gaps = Concatenate(name='concatenated_gaps')(gaps)
-
-    model = Model(inputs=model_base.input, outputs=concat_gaps)
-
+    base_model = InceptionResNetV2(weights='imagenet',
+                                   include_top=False,
+                                   input_shape=input_shape)
+    base_model.load_weights(model_path)
+    feature_layers = [layer for layer in base_model.layers if 'mixed' in layer.name]
+    gaps = [GlobalAveragePooling2D(name="gap%d" % i)(layer.output)
+            for i, layer in enumerate(feature_layers)]
+    concatenated_gaps = Concatenate(name='concatenated_gaps')(gaps)
+    model = Model(inputs=base_model.input, outputs=concatenated_gaps)
+    
     if return_sizes:
-        gap_sizes = [np.int32(g.get_shape()[1]) for g in gaps]
+        gap_sizes = [np.int32(gap.get_shape()[1]) for gap in gaps]
         return (model, gap_sizes)
     else:
         return model
@@ -163,7 +165,7 @@ def predict_from_path(model_gap, model, paths, resize_func=None, size=None, for_
         img_mg = read_img(path=path, resize_func=resize_func, size=size, for_all=True)
         img_cnn = None
         if model_cnn:
-            img_cnn = read_img(path=path, resize_func=resize_add_border, size=(600, 600))
+            img_cnn = read_img(path=path, resize_func=add_border_resize, size=(600, 600))
         pred_score = predict(img_mg, img_cnn, model_gap, model, model_cnn, is_norm, pca_mg, pca_cnn)
         predicted.append(pred_score)
     
@@ -186,7 +188,7 @@ def plot_pred_orig(model_gap, model, imgs_bench, label=None, row_count=2, column
         
         img_cnn = None
         if model_cnn:
-            img_cnn = read_img(path=path, resize_func=resize_add_border, size=(600, 600))
+            img_cnn = read_img(path=path, resize_func=add_border_resize, size=(600, 600))
             
         pred_score = predict(img_mg, img_cnn, model_gap, model, model_cnn, is_norm, pca_mg, pca_cnn)
 

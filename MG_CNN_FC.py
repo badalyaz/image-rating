@@ -1,11 +1,11 @@
-from final_utils import *
-import tensorflow as tf
-import tensorflow_hub as hub
 import numpy as np
+import tensorflow as tf
 import pickle as pk
 from tensorflow import keras
+import tensorflow_hub as hub
+from final_utils import *
 from keras.layers import Concatenate
-from final_utils import model_inceptionresnet_multigap
+
 
 root_path = generate_root_path()
 
@@ -80,27 +80,6 @@ def resize_add_border_tf(img_arr, size, method = "bilinear" ):
                                                target_height = size[0], target_width = size[1])
  
     return img_arr
-
-class PCA_MG(keras.layers.Layer):
-    def __init__(self, pca_path):
-        super(PCA_MG, self).__init__()
-        self.pca =  pk.load(open(pca_path,'rb'))
-        self.pca_matrix =  self.pca.components_
-        self.pca_mean = self.pca.mean_
-        
-    def call(self, inputs):
-        return tf.matmul(inputs - self.pca_mean ,self.pca_matrix.T) #self.pca_matrix.transform(inputs.numpy())
-    
-
-class PCA_CNN(keras.layers.Layer):
-    def __init__(self, pca_path):
-        super(PCA_CNN, self).__init__()
-        self.pca =  pk.load(open(pca_path,'rb'))
-        self.pca_matrix =  self.pca.components_
-        self.pca_mean = self.pca.mean_
-        
-    def call(self, inputs):
-        return tf.matmul(inputs - self.pca_mean ,self.pca_matrix.T) #self.pca_matrix.transform(inputs.numpy())
     
 class Resize_Max(keras.layers.Layer):
     def __init__(self,size = (996,996),for_all = False):
@@ -123,13 +102,32 @@ class Resize_Add_Border(keras.layers.Layer):
              
     def call(self, inputs):
         with_borders = resize_add_border_tf(inputs[0], self.size) 
-#         with_borders = resize_add_border(inputs[0].numpy(),self.size) / 255 
         return with_borders[None]
+class PCA_MG(keras.layers.Layer):
+    def __init__(self, pca_path):
+        super(PCA_MG, self).__init__()
+        self.pca =  pk.load(open(pca_path,'rb'))
+        self.pca_matrix =  self.pca.components_
+        self.pca_mean = self.pca.mean_
+        
+    def call(self, inputs):
+        return tf.matmul(inputs - self.pca_mean ,self.pca_matrix.T) #self.pca_matrix.transform(inputs.numpy())
+    
 
-class model_multigap_cnn_fc(tf.keras.Model):
+class PCA_CNN(keras.layers.Layer):
+    def __init__(self, pca_path):
+        super(PCA_CNN, self).__init__()
+        self.pca =  pk.load(open(pca_path,'rb'))
+        self.pca_matrix =  self.pca.components_
+        self.pca_mean = self.pca.mean_
+        
+    def call(self, inputs):
+        return tf.matmul(inputs - self.pca_mean ,self.pca_matrix.T) #self.pca_matrix.transform(inputs.numpy())
+
+class model_mg_cnn_fc(tf.keras.Model):
     def __init__(self, model_base=model_base, model_cnn=model_cnn, model_fc=model_fc, pca_mg = False, pca_cnn = False,
                  pca_mg_path=pca_mg_path, pca_cnn_path=pca_cnn_path ):
-        super(model_multigap_cnn_fc, self).__init__()
+        super(model_mg_cnn_fc, self).__init__()
         
         self.layer_multigap = model_base
         self.layer_cnn = model_cnn
